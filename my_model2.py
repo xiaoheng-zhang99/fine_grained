@@ -83,10 +83,10 @@ class my_model2(nn.Module):
         # first perform the encode for the first-step semantic partterns
         # tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         # inputs = tokenizer(asr_text, padding=True, return_tensors='pt')
-        print(semantic_input)
-        print("---",asr_text["input_ids"])
+        #print(semantic_input)
+        #print("---",asr_text["input_ids"])
         semantic_embed = self.semantic_embed(**asr_text).last_hidden_state  # [B,T,C]
-        print(semantic_embed.shape)
+        #print(semantic_embed.shape)
         #semantic_embed1=self.semantic_embed(semantic_input)
         semantic_embed = self.semantic_linear(semantic_embed)
         # first perform the encode for the first-step acoustic partterns
@@ -130,10 +130,11 @@ class my_model2(nn.Module):
         fuse_embed, _ = nn.utils.rnn.pad_packed_sequence(
             fuse_embed, batch_first=True
         )
+        print(semantic_input.device)
         # Here we get the final results, we use the max pooling to generate the results
         fuse_mask = torch.arange(
             semantic_input.size(1))[None, :].repeat(semantic_input.size(0), 1
-                                                    ).to(semantic_input.device)
+                                                    ).to("cuda")
         fuse_mask = (fuse_mask < semantic_length[:, None].repeat(1, semantic_input.size(1))).float()
 
         if self.loss_name == 'BCE':
