@@ -44,6 +44,7 @@ class my_model2(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.semantic_embed=BertModel.from_pretrained('bert-base-uncased')
+        self.semantic_embed.eval()
         #print(self.semantic_embed)
         semantic_embed1 = np.load("E:\data\iemocap\glove300d_full.npy")
         semantic_embed1= np.concatenate([np.zeros([1, semantic_embed1.shape[1]]), semantic_embed1], axis=0)
@@ -124,7 +125,7 @@ class my_model2(nn.Module):
         fuse_embed = torch.cat([semantic_embed, acoustic_embed], dim=2)
         # Then we use the fuse lstm to encode the multimodal information
         fuse_pack = nn.utils.rnn.pack_padded_sequence(
-            fuse_embed, semantic_length.cpu(), batch_first=True, enforce_sorted=False
+            fuse_embed, semantic_length, batch_first=True, enforce_sorted=False
         )
         fuse_embed, _ = self.fuse_lstm(fuse_pack)
         fuse_embed, _ = nn.utils.rnn.pad_packed_sequence(

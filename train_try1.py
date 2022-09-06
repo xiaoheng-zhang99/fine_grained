@@ -118,7 +118,7 @@ def tmp_func(x):
 
 def run(config, train_data, valid_data):
     num_workers = 0
-    batch_size = 7
+    batch_size = 3
     epochs = 50
     learning_rate = 5e-4
     ############################## PREPARE DATASET ##########################
