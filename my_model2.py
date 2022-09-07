@@ -125,13 +125,12 @@ class my_model2(nn.Module):
         fuse_embed = torch.cat([semantic_embed, acoustic_embed], dim=2)
         # Then we use the fuse lstm to encode the multimodal information
         fuse_pack = nn.utils.rnn.pack_padded_sequence(
-            fuse_embed, semantic_length, batch_first=True, enforce_sorted=False
+            fuse_embed,  semantic_length.cpu(), batch_first=True, enforce_sorted=False
         )
         fuse_embed, _ = self.fuse_lstm(fuse_pack)
         fuse_embed, _ = nn.utils.rnn.pad_packed_sequence(
             fuse_embed, batch_first=True
         )
-        print(semantic_input.device)
         # Here we get the final results, we use the max pooling to generate the results
         fuse_mask = torch.arange(
             semantic_input.size(1))[None, :].repeat(semantic_input.size(0), 1

@@ -62,6 +62,7 @@ class IEMOCAPDataset(object):
         # Here we use the 0 to represent the padding tokens
         text_input = text_input + 1
         text_length = text_input.size(0)
+        #print(text_length)
 
         # ------------- generate the force alignment matrix -------------#
         align_info = open(align_path, 'r').readlines()[1:-1]  # get rid off the head and tail info
@@ -107,7 +108,7 @@ def tmp_func(x):
 def run(config, train_data, valid_data):
     num_workers = 0
     batch_size = 8
-    epochs = 50
+    epochs = 5
     learning_rate = 5e-4
     ############################## PREPARE DATASET ##########################
     train_dataset = IEMOCAPDataset(config, train_data)
@@ -237,9 +238,9 @@ if __name__ == '__main__':
     report_result = []
     data_root = 'E:/data/iemocap/'
     #data_source = ['Session1-wav.pkl', 'Session2-wav.pkl', 'Session3-wav.pkl', 'Session4-wav.pkl', 'Session5-wav.pkl']
-    data_source = ['Session1-wav.pkl', 'Session2-wav.pkl','Session3-wav.pkl', 'Session4-wav.pkl', 'Session5-wav.pkl']
+    data_source = ['Session1-wav.pkl', 'Session2-wav.pkl']
 
-    for i in range(5):
+    for i in range(2):
         valid_path = os.path.join(data_root, data_source[i])
         valid_data = pickle.load(open(valid_path, 'rb'))
         valid_data = [(os.path.join(data_root, x[0]), x[1], os.path.join(data_root, x[2]), x[3]) for x in valid_data]

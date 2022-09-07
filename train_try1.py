@@ -70,6 +70,7 @@ class IEMOCAPDataset(object):
         # text_input = text_input + 1
         # text_length = text_input.size(0)
         text_length = len(tokenizer.encode(asr_text, add_special_tokens=True))
+        print(text_length)
         #print(text_input_model, text_length)
 
         # ------------- generate the force alignment matrix -------------#
@@ -100,7 +101,6 @@ def collate(sample_list):
     batch_text2 = [x['text_input_model'] for x in sample_list]
     batch_audio = pad_sequence(batch_audio, batch_first=True)
     batch_text = pad_sequence(batch_text, batch_first=True)
-    print(batch_asrtext)
     audio_length = torch.LongTensor([x['audio_length'] for x in sample_list])
     text_length = torch.LongTensor([x['text_length'] for x in sample_list])
 
@@ -118,8 +118,8 @@ def tmp_func(x):
 
 def run(config, train_data, valid_data):
     num_workers = 0
-    batch_size = 3
-    epochs = 50
+    batch_size = 8
+    epochs = 5
     learning_rate = 5e-4
     ############################## PREPARE DATASET ##########################
     train_dataset = IEMOCAPDataset(config, train_data)
@@ -163,6 +163,7 @@ def run(config, train_data, valid_data):
                 semantic_input_model[i]["input_ids"] = semantic_input_model[i]["input_ids"].cuda()
                 semantic_input_model[i]["token_type_ids"] = semantic_input_model[i]["token_type_ids"].cuda()
                 semantic_input_model[i]["attention_mask"]=semantic_input_model[i]["attention_mask"].cuda()
+            semantic_length=semantic_length.cuda()
             align_input = batch_input[2].cuda() #0
             label_input = label_input.cuda()
             model.zero_grad()
@@ -183,7 +184,7 @@ def run(config, train_data, valid_data):
         pred_y, true_y = [], []
         with torch.no_grad():
             for batch_input, label_input, _ in valid_loader:
-                aacoustic_input, acoustic_length = batch_input[0]
+                acoustic_input, acoustic_length = batch_input[0]
                 acoustic_input = acoustic_input.cuda()
                 acoustic_length = acoustic_length.cuda()
                 asr_text,semantic_input, semantic_input_model, semantic_length = batch_input[1]
@@ -197,6 +198,7 @@ def run(config, train_data, valid_data):
                     semantic_input_model[i]["input_ids"] = semantic_input_model[i]["input_ids"].cuda()
                     semantic_input_model[i]["token_type_ids"] = semantic_input_model[i]["token_type_ids"].cuda()
                     semantic_input_model[i]["attention_mask"]=semantic_input_model[i]["attention_mask"].cuda()
+                semantic_length = semantic_length.cuda()
                 align_input = batch_input[2].cuda() #0
 
                 true_y.extend(list(label_input.numpy()))
@@ -225,10 +227,19 @@ def run(config, train_data, valid_data):
                     acoustic_input, acoustic_length = batch_input[0]
                     acoustic_input = acoustic_input.cuda()
                     acoustic_length = acoustic_length.cuda()
-                    semantic_input, semantic_length = batch_input[1]
+                    asr_text, semantic_input, semantic_input_model, semantic_length = batch_input[1]
+                    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+                    asr_text = tokenizer(asr_text, padding=True, return_tensors='pt')
+                    asr_text["input_ids"] = asr_text["input_ids"].cuda()
+                    asr_text["token_type_ids"] = asr_text["token_type_ids"].cuda()
+                    asr_text["attention_mask"] = asr_text["attention_mask"].cuda()
                     semantic_input = semantic_input.cuda()
+                    for i in range(len(semantic_input_model)):
+                        semantic_input_model[i]["input_ids"] = semantic_input_model[i]["input_ids"].cuda()
+                        semantic_input_model[i]["token_type_ids"] = semantic_input_model[i]["token_type_ids"].cuda()
+                        semantic_input_model[i]["attention_mask"] = semantic_input_model[i]["attention_mask"].cuda()
                     semantic_length = semantic_length.cuda()
-                    align_input = batch_input[2].cuda()
+                    align_input = batch_input[2].cuda()  # 0
                     #align_input = batch_input[2]
 
                     true_y.extend(list(label_input.numpy()))
