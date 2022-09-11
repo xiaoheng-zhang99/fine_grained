@@ -4,6 +4,7 @@ import time
 import yaml
 import pickle
 import argparse
+import random
 import numpy as np
 from tqdm import tqdm
 from functools import reduce
@@ -14,9 +15,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from torch.utils.tensorboard import SummaryWriter
+
 import matplotlib.pyplot as plt
 from models import NeoMeanMaxExcite_v2
-from my_model import my_model1
+from my_model import my_model1,my_model_alignment
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -70,15 +73,20 @@ class IEMOCAPDataset(object):
         align_info = [(x[-1].strip('\n').split('(')[0].lower(), int(x[1]), int(x[2])) for x in align_info]
         # For the silence probably we can make some use
         align_info = [x for x in align_info if x[0] not in ['<s>', '<sil>', '</s>']]
+        #print("al info4", align_info)
         align_input = []
         for _, begin_time, end_time in align_info:
+
             begin_idx = int(begin_time * 0.01 / 0.01)
             end_idx = int(end_time * 0.01 / 0.01) + 1
+
             align_slice = torch.zeros(audio_input.size(0))
             align_slice[begin_idx:end_idx] = 1.0
+            #print(align_slice.shape)
             align_input.append(align_slice[None, :])
-            #print(align_input)
+
         align_input = torch.cat(align_input, dim=0)
+        #print(align_input.shape)
         # ------------- wrap up all the output info the dict format -------------#
         return {'audio_input': audio_input, 'text_input': text_input, 'audio_length': audio_length,
                 'text_length': text_length, 'align_input': align_input, 'label': label, 'audio_name': audio_name}
@@ -108,8 +116,20 @@ def tmp_func(x):
 def run(config, train_data, valid_data):
     num_workers = 0
     batch_size = 8
-    epochs = 5
-    learning_rate = 5e-4
+    epochs = 25
+    learning_rate = 1e-4
+
+    seed_val = 42
+    random.seed(seed_val)
+    np.random.seed(seed_val)
+    torch.manual_seed(seed_val)
+    torch.cuda.manual_seed_all(seed_val)
+    deterministic=False
+    if deterministic:
+        torch.backends.cudnn.deterministic=True
+        torch.backends.cudnn.benchmark = False
+
+
     ############################## PREPARE DATASET ##########################
     train_dataset = IEMOCAPDataset(config, train_data)
     train_loader = torch.utils.data.DataLoader(
@@ -124,13 +144,13 @@ def run(config, train_data, valid_data):
     )
 
     ########################### CREATE MODEL #################################
-    model = my_model1(config)
+    model = my_model_alignment(config)
     model.to("cuda")
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     loss_function = nn.CrossEntropyLoss()
     ########################### TRAINING #####################################
     count, best_metric, save_metric, best_epoch = 0, -np.inf, None, 0
-
+    writer = SummaryWriter("logs")
     for epoch in range(epochs):
         print("epoch----training----",epoch)
         epoch_train_loss = []
@@ -138,6 +158,7 @@ def run(config, train_data, valid_data):
         start_time = time.time()
         #time.sleep(2)  # avoid the deadlock during the switch between the different dataloaders
         #progress = tqdm(train_loader, desc='Epoch {:0>3d}'.format(epoch))
+
         for batch_input, label_input, _ in train_loader:
             acoustic_input, acoustic_length = batch_input[0]
             acoustic_input = acoustic_input.cuda()
@@ -155,7 +176,6 @@ def run(config, train_data, valid_data):
                            align_input, )
 
             loss = loss_function(logits, label_input.long())
-
             epoch_train_loss.append(loss)
             loss.backward()
             optimizer.step()
@@ -187,6 +207,8 @@ def run(config, train_data, valid_data):
 
         key_metric, report_metric = evaluate_metrics(pred_y, true_y)
         epoch_train_loss = torch.mean(torch.tensor(epoch_train_loss)).cpu().detach().numpy()
+        writer.add_scalar('training loss', loss.item(), count)
+        writer.close()
 
         print('Valid Metric: {} - Train Loss: {:.3f}'.format(
             ' - '.join(['{}: {:.3f}'.format(key, value) for key, value in report_metric.items()]),epoch_train_loss))
@@ -223,9 +245,9 @@ def run(config, train_data, valid_data):
             print("Test Metric: {}".format(
                 ' - '.join(['{}: {:.3f}'.format(key, value) for key, value in save_metric.items()])
             ))
-
     print("End. Best epoch {:03d}: {}".format(best_epoch, ' - '.join(
         ['{}: {:.3f}'.format(key, value) for key, value in save_metric.items()])))
+    torch.save(model, 'D:/appstorage/PyCharm Community Edition 2022.2.1/fine_grained/model_best.pt')
     c = confusion_matrix(true_y, pred_y)
     disp = ConfusionMatrixDisplay(confusion_matrix=c, display_labels=[0, 1, 2, 3])
     disp.plot()
@@ -237,20 +259,22 @@ if __name__ == '__main__':
     config = yaml.load(open("D:/appstorage/PyCharm Community Edition 2022.2.1/fine_grained/config.yaml", 'r'), Loader=yaml.FullLoader)
     report_result = []
     data_root = 'E:/data/iemocap/'
-    #data_source = ['Session1-wav.pkl', 'Session2-wav.pkl', 'Session3-wav.pkl', 'Session4-wav.pkl', 'Session5-wav.pkl']
-    data_source = ['Session1-wav.pkl', 'Session2-wav.pkl']
+    data_source = ['Session3-wav.pkl','Session1-wav.pkl', 'Session2-wav.pkl',  'Session4-wav.pkl', 'Session5-wav.pkl']
+    #data_source = ['Session1-wav.pkl', 'Session2-wav.pkl']
 
-    for i in range(2):
+    for i in range(5):
         valid_path = os.path.join(data_root, data_source[i])
         valid_data = pickle.load(open(valid_path, 'rb'))
         valid_data = [(os.path.join(data_root, x[0]), x[1], os.path.join(data_root, x[2]), x[3]) for x in valid_data]
+        print(valid_path)
         #print(valid_data)
 
         train_path = [os.path.join(data_root, x) for x in data_source[:i] + data_source[i + 1:]]
         train_data = list(reduce(lambda a, b: a + b, [pickle.load(open(x, 'rb')) for x in train_path]))
         train_data = [(os.path.join(data_root, x[0]), x[1], os.path.join(data_root, x[2]), x[3]) for x in train_data]
 
-    report_metric = run(config, train_data, valid_data)
-    report_result.append(report_metric)
+        report_metric = run(config, train_data, valid_data)
+        report_result.append(report_metric)
+        print(report_result)
     os.makedirs('E:/data/iemocap/save', exist_ok=True)
     pickle.dump(report_result, open(os.path.join('E:/data/iemocap/save/', 'metric_report.pkl'), 'wb'))

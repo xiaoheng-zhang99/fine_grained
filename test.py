@@ -22,6 +22,7 @@ outputs = model(**input_ids)
 #encoded_layers, _ = model(input_ids2)
 #print("try",encoded_layers)
 
+print(model)
 last_hidden_states = outputs.last_hidden_state
 print('last_hidden_states:' ,last_hidden_states.shape)
 pooler_output = outputs.pooler_output
@@ -44,3 +45,10 @@ audio_out=model.acoustic_lstm(audio_input)
 print(audio_out[0].shape)
 
 '''
+from torch.utils.tensorboard import SummaryWriter
+
+writer = SummaryWriter('logs')
+x = range(100)
+for i in x:
+    writer.add_scalar('y=x+10', i, i+10)
+writer.close()
